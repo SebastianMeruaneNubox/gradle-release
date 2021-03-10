@@ -1,0 +1,6 @@
+include "@projectName@-model", "@projectName@-web"
+
+// @packagePath@
+// @groupPath@/@namePath@
+// @name.capitalize()@
+// @new Date()@

@@ -1,284 +1,195 @@
-# gradle-release plugin
+# [LOOK FOR NEW MAINTAINER]
 
-[![Build Status](https://travis-ci.org/researchgate/gradle-release.svg?branch=master)](https://travis-ci.org/researchgate/gradle-release)
-[![Download](https://api.bintray.com/packages/researchgate/gradle-plugins/gradle-release/images/download.svg)](https://bintray.com/researchgate/gradle-plugins/gradle-release/_latestVersion)
-[![Gitter](https://img.shields.io/badge/chat-online-brightgreen.svg?style=flat)](https://gitter.im/researchgate/gradle-release)
+## gradle-archetype-plugin [![Build Status](https://travis-ci.org/orctom/gradle-archetype-plugin.svg)](https://travis-ci.org/orctom/gradle-archetype-plugin)
 
-## Introduction
+Maven archetype like plugin for Gradle.
+Generating projects from local template.
 
-The gradle-release plugin is designed to work similar to the Maven release plugin.
-The `gradle release` task defines the following as the default release process:
+### Install
+https://plugins.gradle.org/plugin/com.orctom.archetype
 
-* The plugin checks for any un-committed files (Added, modified, removed, or un-versioned).
-* Checks for any incoming or outgoing changes.
-* Checkout to the release branch and merge from the working branch (optional, for GIT only, with `pushReleaseVersionBranch`)
-* Removes the SNAPSHOT flag on your project's version (If used)
-* Prompts you for the release version.
-* Checks if your project is using any SNAPSHOT dependencies
-* Will `build` your project.
-* Commits the project if SNAPSHOT was being used.
-* Creates a release tag with the current version.
-* Checkout to the working branch (optional, for GIT only, with `pushReleaseVersionBranch`)
-* Prompts you for the next version.
-* Commits the project with the new version.
+### Tasks
+ * `cleanArchetype`: cleans the generated folders and files.
+ * `generate`: generates projects from the template.
 
-Current SCM support: [Bazaar](http://bazaar.canonical.com/en/), [Git](http://git-scm.com/) (1.7.2 or newer), [Mercurial](http://mercurial.selenic.com/), and [Subversion](http://subversion.apache.org/)
+### Interactive Mode:
+```
+gradle cleanArch generate -i
+```
 
-## Installation
+### Batch Mode:
+```
+gradle cleanArch generate -i -Dtarget=generated -Dgroup=com.xxx.yyy -Dname=dummy-service -Dversion=1.0-SNAPSHOT
+```
 
-The gradle-release plugin will work with Gradle 1.0M3 and beyond
+### Parameters
+#### Prompted
+Following parameters will be asked, if not available in system properties
 
-### Gradle 1.x and 2.0
+| Param           | Description                                         | Default                        |
+| --------------- | ----------------------------------------------------| ------------------------------ |
+| group           | group name in Gradle or Maven, *Mandatory*          |                                |
+| name            | name in Gradle, of artifactId in Maven, *Mandatory* |                                |
+| version         | version in Gradle or Maven, *Mandatory*             | 1.0-SNAPSHOT                   |
 
+#### Won't Be Prompted
+Following parameters will NOT be prompted, if not available in system properties.
+
+| Param           | Description                                         | Default                        |
+| --------------- | ----------------------------------------------------| ------------------------------ |
+| templates       | The folder path where template locates, *Mandatory* | `src/main/resources/templates` |
+| failIfFileExist | Fail if there are files with the same name exist in the `generated` folder; otherwise overwrite | `true` |
+
+#### System Properties
+Parameters will firstly been searched in System Properties, which includes:
+
+ * gradle.properties: systemProp.param1=value1
+ * settings.properties: systemProp.param1=value1
+ * ~/.gradle/gradle.properties (not suggested for this plugin)
+ * Command line: -Dparam1=value1 -Dparam2=value2 -Dparam3=value3
+
+### Variables:
+Variables that can be used in template files.
+
+| name         | description                                        | sample                |
+| ------------ | -------------------------------------------------- | --------------------- |
+| group        | project.group                                      | com.xxx.yyy           |
+| name         | project.name                                       | dummy-app             |
+| version      | project.version                                    | 1.0-SNAPSHOT          |
+| projectName  | project.name                                       | dummy-app             |
+| namePackage  | replaced non-characters with '.' in name           | dummy.app             |
+| namePath     | replaced non-characters with '/' in name           | dummy/app             |
+| groupPath    | replaced '.' with '/' in group                     | com/xxx/yyy           |
+| packageName  | (group + name) replaced non-characters with '.'    | com.xxx.yyy.dummy.app |
+| packagePath  | replaced '.' with '/' in packageName               | com/xxx/yyy/dummy/app |
+
+#### Adding Custom variables
+Extra variables can be added via command line or programmatically with the
+`com.orctom.gradle.archetype.binding` prefix.
+
+Command line :
+```
+-Dparam1=value1 -Dparam2=value2 -Dparam3=value3 ...
+```
+
+Property prefix :
+```
+System.setProperty('com.orctom.gradle.archetype.binding.param1', value1)
+```
+
+#### Prompt for custom variables
+Extra variables (bindings) can be prompted if missing, just like group or name.
+
+Provide `bindingsToPrompt` map where key is binding name and value is default value for variable. If none default should
+be available, just put empty `String`
+
+Example:
 ```groovy
-buildscript {
-  repositories {
-    maven {
-      url 'https://plugins.gradle.org/m2/'
-    }
-  }
-  dependencies {
-    classpath 'net.researchgate:gradle-release:2.8.1'
-  }
+generate {
+   bindingsToPrompt = ["apiVersion" : "1", "createdBy" : ""]
 }
-
-apply plugin: 'net.researchgate.release'
 ```
 
-### Gradle 2.1 and higher
 
+#### Programmatic Customization of Bindings
+Often, additional variables (bindings) need to be created based on the values of existing variables after they have
+ been resolved (e.g., when they are entered in interactive mode), but prior to the start of the actual generation
+ process.
+
+The `generate` task can be configured with a processor that is called just prior to the actual file generation, but
+after all other variables have been resolved. The processor is just a closure that accepts a single argument, the
+current binding configuration as a `Map`.  The processor is specified by setting the `bindingProcessor` property
+of the `generate` task.
+
+For example:
 ```groovy
-plugins {
-  id 'net.researchgate.release' version '2.8.1'
-}
-```
-
-Please refer to the [Gradle DSL PluginDependenciesSpec](http://www.gradle.org/docs/current/dsl/org.gradle.plugin.use.PluginDependenciesSpec.html) to
-understand the behavior and limitations when using the new syntax to declare plugin dependencies.
-
-## Usage
-
-After you have your `build.gradle` file configured, simply run: `gradle release` and follow the on-screen instructions.
-
-### Configuration
-
-As described above, the plugin will check for un-committed files and SNAPSHOT dependencies.
-By default the plugin will fail when any un-committed, or SNAPSHOT dependencies are found.
-
-Below are some properties of the Release Plugin Convention that can be used to make your release process more lenient
-
-<table border="0">
-	<tr>
-		<th>Name</th>
-		<th>Default value</th>
-		<th>Description</th>
-	</tr>
-	<tr>
-		<td>failOnCommitNeeded</td>
-		<td>true</td>
-		<td>Fail the release process when there are un-committed changes. Will commit files automatically if set to false.</td>
-	</tr>
-	<tr>
-		<td>failOnPublishNeeded</td>
-		<td>true</td>
-		<td>Fail when there are local commits that haven't been published upstream (DVCS support)</td>
-	</tr>
-	<tr>
-		<td>failOnSnapshotDependencies</td>
-		<td>true</td>
-		<td>Fail when the project has dependencies on SNAPSHOT versions unless those SNAPSHOT dependencies have been defined as <i>'ignoredSnapshotDependencies'</i> using the syntax '$group:$name'</td>
-	</tr>
-	<tr>
-		<td>failOnUnversionedFiles</td>
-		<td>true</td>
-		<td>Fail when files are found that are not under version control</td>
-	</tr>
-	<tr>
-		<td>failOnUpdateNeeded</td>
-		<td>true</td>
-		<td>Fail when the source needs to be updated, or there are changes available upstream that haven't been pulled</td>
-	</tr>
-	<tr>
-		<td>revertOnFail</td>
-		<td>true</td>
-		<td>When a failure occurs should the plugin revert it's changes to gradle.properties?</td>
-	</tr>
-	<tr>
-		<td>pushReleaseVersionBranch</td>
-		<td>false</td>
-		<td>(GIT only) If set to the name of a branch, the `release` task will commit the release on this branch, and the next version on the working branch.</td>
-	</tr>
-</table>
-
-Below are some properties of the Release Plugin Convention that can be used to customize the build<br>
-<table>
-	<tr>
-		<th>Name</th>
-		<th>Default value</th>
-		<th>Description</th>
-	</tr>
-	<tr>
-		<td>tagTemplate</td>
-		<td>$version</td>
-		<td>The string template which is used to generate the tag name. Possible variables are $version and $name. Example: '$name-$version' will result in "myproject-1.1.0". (Always ensure to use single-quotes, otherwise `$` is interpreted already in your build script)</td>
-	</tr>
-	<tr>
-		<td>preCommitText</td>
-		<td></td>
-		<td>This will be prepended to all commits done by the plugin. A good place for code review, or ticket numbers</td>
-	</tr>
-	<tr>
-		<td>preTagCommitMessage</td>
-		<td>[Gradle Release Plugin] - pre tag commit: </td>
-		<td>The commit message used to commit the non-SNAPSHOT version if SNAPSHOT was used</td>
-	</tr>
-	<tr>
-		<td>tagCommitMessage</td>
-		<td>[Gradle Release Plugin] - creating tag: </td>
-		<td>The commit message used when creating the tag. Not used with BZR projects</td>
-	</tr>
-	<tr>
-		<td>newVersionCommitMessage</td>
-		<td>[Gradle Release Plugin] - new version commit:</td>
-		<td>The commit message used when committing the next version</td>
-	</tr>
-	<tr>
-		<td>snapshotSuffix</td>
-		<td>-SNAPSHOT</td>
-		<td>The version suffix used by the project's version (If used)</td>
-	</tr>
-</table>
-
-Below are some properties of the Release Plugin Convention that are specific to version control.<br>
-<table>
-	<tr>
-		<th>VCS</th>
-		<th>Name</th>
-		<th>Default value</th>
-		<th>Description</th>
-	</tr>
-	<tr>
-		<td>Git</td>
-		<td>requireBranch</td>
-		<td>master</td>
-		<td>Defines the branch which releases must be done off of. Eg. set to `release` to require releases are done on the `release` branch (or use a regular expression to allow releases from multiple branches, e.g. `/release|master/`). Set to '' to ignore.</td>
-	</tr>
-	<tr>
-		<td>Git</td>
-		<td>pushOptions</td>
-		<td>{empty}</td>
-		<td>Defines an array of options to add to the git adapter during a push.  This could be useful to have the vc hooks skipped during a release. Example `pushOptions = ["--no-verify"]`</td>
-	</tr>
-	<tr>
-	    <td>Git</td>
-	    <td>signTag</td>
-	    <td>false</td>
-	    <td>Adds `-s` parameter to the tag command</td>
-	</tr>
-</table>
-
-To set any of these properties to false, add a "release" configuration to your project's ```build.gradle``` file. Eg. To ignore un-versioned files, you would add the following to your ```build.gradle``` file:
-
-```
-release {
-  failOnUnversionedFiles = false
-}
-```
-
-Eg. To ignore upstream changes, change 'failOnUpdateNeeded' to false:
-
-```
-release {
-  failOnUpdateNeeded = false
-}
-```
-
-This are all possible configuration options and its default values:
-
-```
-release {
-    failOnCommitNeeded = true
-    failOnPublishNeeded = true
-    failOnSnapshotDependencies = true
-    failOnUnversionedFiles = true
-    failOnUpdateNeeded = true
-    revertOnFail = true
-    preCommitText = ''
-    preTagCommitMessage = '[Gradle Release Plugin] - pre tag commit: '
-    tagCommitMessage = '[Gradle Release Plugin] - creating tag: '
-    newVersionCommitMessage = '[Gradle Release Plugin] - new version commit: '
-    tagTemplate = '${version}'
-    versionPropertyFile = 'gradle.properties'
-    versionProperties = []
-    snapshotSuffix = '-SNAPSHOT'
-    buildTasks = ['build']
-    ignoredSnapshotDependencies = []
-    versionPatterns = [
-        /(\d+)([^\d]*$)/: { Matcher m, Project p -> m.replaceAll("${(m[0][1] as int) + 1}${m[0][2]}") }
-    ]
-    pushReleaseVersionBranch = false
-    scmAdapters = [
-        net.researchgate.release.GitAdapter,
-        net.researchgate.release.SvnAdapter,
-        net.researchgate.release.HgAdapter,
-        net.researchgate.release.BzrAdapter
-    ]
-
-    git {
-        requireBranch = 'master'
-        pushToRemote = 'origin'
-        pushToBranchPrefix = ''
-        commitVersionFileOnly = false
-        signTag = false
-    }
-
-    svn {
-        username = null
-        password = null
-        pinExternals = false   // allows to pin the externals when tagging, requires subversion client >= 1.9.0
+generate {
+    bindingProcessor = { bindings ->
+        bindings.capitalizedName = bindings.name.capitalize()
     }
 }
 ```
 
-### Custom release steps
+### Token Format
+ * In code: `@variable@`
+ * In file name: `__variable__`
 
-To add a step to the release process is very easy. Gradle provides a very nice mechanism for [manipulating existing tasks](http://gradle.org/docs/current/userguide/tutorial_using_tasks.html#N102B2). There are two available hooks provided: `beforeReleaseBuild` which runs before build and `afterReleaseBuild` which runs afterwards.
+Additional GString expressions can be defined between the `@` and `__` tokens :
+ * `@variable.capitalize()@`
+ * `__new Date()__`
 
-For example, if we wanted to make sure `uploadArchives` is called and succeeds after the build with the release version has finished, we would just add the `uploadArchives` task as a dependency of the `afterReleaseBuild` task:
+See [GStringTemplateEngine](http://docs.groovy-lang.org/latest/html/api/groovy/text/GStringTemplateEngine.html)
 
-```groovy
-afterReleaseBuild.dependsOn uploadArchives
+### Generated Project(s) Folder
+Fixed to: `generated`.
+
+### Non-templates:
+Files that will not be resoled by variables, as they would fail if tried to resolve.
+Put the non-template lists to `.nontemplates` file,
+and put the file to template folder (such as `src/main/resources/templates`) or `src/main/resources/`.
+
+Sample:
+```
+# comments
+**/*.jar
+**/*.bat
+**/*.sh
+**/*.zip
+**/*.gz
+**/*.xz
+**/*.tar
+**/*.7z
+
+gradle/
+.gradle/
+gradlew
+gradlew.bat
 ```
 
-### Multi-Project Builds
+It follows ant style. The tailing slash for directory is mandatory.
 
-Support for [multi-project builds](http://gradle.org/docs/current/userguide/multi_project_builds.html) isn't complete, but will work given some assumptions. The gradle-release plugin assumes and expects that only one version control system is used by both root and sub projects.
+### Sample
+https://github.com/orctom/gradle-archetype-plugin/tree/master/src/test/resources/sample
 
-Apply the plugin separately to each subproject that you wish to release. Release using a qualified task name, e.g.:
+### Known Issues
+ * Doesn't work with property files that have such escapes: key=https`\`://aaa.bbb.ccc/xxx, remove the `\` escape to have it work.
+ * In interactive mode, the prompt text got truncated sometimes.
 
-```bash
-./gradlew :sub:release # release a subproject named "sub"
-./gradlew :release # release the root project
-```
+### Change Logs
+#### 1.4.8
+ * [#29](https://github.com/orctom/gradle-archetype-plugin/pull/29) Add custom variable prompting functionality
 
-### Working in Continuous Integration
+#### 1.4.6.3
+ * Fixed issue [#19](https://github.com/orctom/gradle-archetype-plugin/pull/19) blank lines and comments support in `.nontemplate`
 
-In a continuous integration environment like Jenkins or Hudson, you don't want to have an interactive release process. To avoid having to enter any information manually during the process, you can tell the plugin to automatically set and update the version number.
+#### 1.4.5
+ * Fixed issue [#17](https://github.com/orctom/gradle-archetype-plugin/pull/17)
 
-You can do this by setting the `release.useAutomaticVersion` property on the command line, or in Jenkins when you execute gradle. The version to release and the next version can be optionally defined using the properties `release.releaseVersion` and `release.newVersion`.
+#### 1.4.4
+ * Fixed issue [#16](https://github.com/orctom/gradle-archetype-plugin/pull/17) (introduced in `1.4.3`)
 
-```bash
-gradle release -Prelease.useAutomaticVersion=true -Prelease.releaseVersion=1.0.0 -Prelease.newVersion=1.1.0-SNAPSHOT
-```
+#### 1.4.3
+ * Fixed issue for windows.[#15](https://github.com/orctom/gradle-archetype-plugin/pull/15)
 
-## Getting Help
+#### 1.4.2
+ * Added escape for `@`.[#14](https://github.com/orctom/gradle-archetype-plugin/pull/14)
 
-To ask questions please use stackoverflow or github issues.
+#### 1.4.1
+ * Adding ability to programmatically add bindings. #12
+ * Do not override properties if already defined. #13
 
-* GitHub Issues: [https://github.com/researchgate/gradle-release/issues/new](https://github.com/researchgate/gradle-release/issues/new)
-* Stack Overflow: [http://stackoverflow.com/questions/tagged/gradle-release-plugin](http://stackoverflow.com/questions/tagged/gradle-release-plugin)
+#### 1.4
+ * Renamed `clean` task to `cleanArchetype`, as _"Declaring custom check, **clean**, build or assemble tasks is not allowed anymore when using the lifecycle plugin."_ (https://docs.gradle.org/3.0/release-notes)
+ * Allowing full GString expressions to be passed on to parser
 
-To report bugs, please use the GitHub project.
+#### 1.3.1.1
+ * Fixed issue in 1.3.1, `packagePath` and `namePath` not working as expected.
 
-* Project Page: [https://github.com/researchgate/gradle-release](https://github.com/researchgate/gradle-release)
-* Reporting Bugs: [https://github.com/researchgate/gradle-release/issues](https://github.com/researchgate/gradle-release/issues)
+#### 1.3.1
+ * Added variables: `namePackage` and `namePath` (**NOTICE: do NOT use this buggy version**).
+
+#### 1.3
+ * The target folder where the generated project(s) locates is not changeable, fixed to `generated`.
+ * The generation will fail by default, if there are files with the same name exist in the `generated` folder.
+ * Added `clean` task that will have `generated` folder recreated.
+ * Changed `print` and `println` to logger, so please append `-i` args to have the log printed out.
